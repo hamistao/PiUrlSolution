@@ -6,12 +6,6 @@ import (
 	"math/big"
 )
 
-var (
-	CONST1 = big.NewInt(545140134)
-	CONST2 = big.NewInt(13591409)
-	CONST3 = big.NewInt(-262537412640768000)
-)
-
 func Chudnovsky() *big.Float {
 	/**
 	* 	This is an implementation for https://en.wikipedia.org/wiki/Chudnovsky_algorithm
