@@ -6,70 +6,9 @@ import (
 	"math/big"
 )
 
-func Chudnovsky() *big.Float {
-	/**
-	* 	This is an implementation for https://en.wikipedia.org/wiki/Chudnovsky_algorithm
-	*	it can be improved using binary splitting http://numbers.computation.free.fr/Constants/Algorithms/splitting.html
-	* 	if we split it into two independent parts and simplify the formula for more details https://www.craig-wood.com/nick/articles/pi-chudnovsky/
-	 */
-
-	c := new(big.Float).Mul(
-		big.NewFloat(float64(426880)),
-		new(big.Float).Sqrt(big.NewFloat(float64(10005))),
-	)
-
-	k := big.NewInt(int64(6))
-	k12 := big.NewInt(int64(12))
-	l := big.NewFloat(float64(13591409))
-	lc := big.NewFloat(float64(545140134))
-	x := big.NewFloat(float64(1))
-	xc := big.NewFloat(float64(-262537412640768000))
-	m := big.NewFloat(float64(1))
-	sum := big.NewFloat(float64(13591409))
-
-	pi := big.NewFloat(0)
-
-	bigI := big.NewInt(0)
-	bigOne := big.NewInt(1)
-
-	flag := 0
-
-	for {
-
-		if flag == 10 {
-			flag = 0
-			fmt.Println(pi)
-		}
-		// L calculation
-		l.Add(l, lc)
-
-		// X calculation
-		x.Mul(x, xc)
-
-		// M calculation
-		kpower3 := big.NewInt(0)
-		kpower3.Exp(k, big.NewInt(3), nil)
-		ktimes16 := new(big.Int).Mul(k, big.NewInt(16))
-		mtop := big.NewFloat(0)
-		mtop.SetInt(new(big.Int).Sub(kpower3, ktimes16))
-		mbot := big.NewFloat(0)
-		mbot.SetInt(new(big.Int).Exp(new(big.Int).Add(bigI, bigOne), big.NewInt(3), nil))
-		mtmp := big.NewFloat(0)
-		mtmp.Quo(mtop, mbot)
-		m.Mul(m, mtmp)
-
-		// Sum calculation
-		t := big.NewFloat(0)
-		t.Mul(m, l)
-		t.Quo(t, x)
-		sum.Add(sum, t)
-
-		// Pi calculation
-		pi.Quo(c, sum)
-		k.Add(k, k12)
-		bigI.Add(bigI, bigOne)
-		flag++
-	}
+type Word struct {
+	Number string
+	Digits int64
 }
 
 func CalcPi(digits float64) (*big.Float, uint) {
@@ -78,8 +17,11 @@ func CalcPi(digits float64) (*big.Float, uint) {
 	*	it can be improved using binary splitting http://numbers.computation.free.fr/Constants/Algorithms/splitting.html
 	* 	if we split it into two independent parts and simplify the formula for more details https://www.craig-wood.com/nick/articles/pi-chudnovsky/
 	 */
+
 	n := int64(2 + int(float64(digits)/14.181647462))
 	prec := uint(int(math.Ceil(math.Log2(10)*digits)) + int(math.Ceil(math.Log10(digits))) + 2)
+
+	fmt.Println(prec)
 
 	c := new(big.Float).Mul(
 		big.NewFloat(float64(426880)),
@@ -105,14 +47,8 @@ func CalcPi(digits float64) (*big.Float, uint) {
 	bigI := big.NewInt(0)
 	bigOne := big.NewInt(1)
 
-	flag := 0
-
 	for ; n > 0; n-- {
 
-		if flag == 1 {
-			flag = 0
-			fmt.Println(pi)
-		}
 		// L calculation
 		l.Add(l, lc)
 
@@ -142,7 +78,84 @@ func CalcPi(digits float64) (*big.Float, uint) {
 		k.Add(k, k12)
 		bigI.Add(bigI, bigOne)
 
-		flag++
+		fmt.Println(pi)
+
 	}
 	return pi, prec
+}
+
+func Chudnovsky(flag, p int, words chan Word) {
+	/**
+	* 	This is an implementation for https://en.wikipedia.org/wiki/Chudnovsky_algorithm
+	*	it can be improved using binary splitting http://numbers.computation.free.fr/Constants/Algorithms/splitting.html
+	* 	if we split it into two independent parts and simplify the formula for more details https://www.craig-wood.com/nick/articles/pi-chudnovsky/
+	 */
+
+	maxPrec := uint(big.MaxPrec / p)
+
+	c := new(big.Float).Mul(
+		big.NewFloat(float64(426880)),
+		new(big.Float).SetPrec(maxPrec).Sqrt(big.NewFloat(float64(10005))),
+	)
+
+	k := big.NewInt(int64(6))
+	k12 := big.NewInt(int64(12))
+	l := big.NewFloat(float64(13591409))
+	lc := big.NewFloat(float64(545140134))
+	x := big.NewFloat(float64(1))
+	xc := big.NewFloat(float64(-262537412640768000))
+	m := big.NewFloat(float64(1))
+	sum := big.NewFloat(float64(13591409))
+
+	pi := big.NewFloat(0)
+
+	x.SetPrec(maxPrec)
+	m.SetPrec(maxPrec)
+	sum.SetPrec(maxPrec)
+	pi.SetPrec(maxPrec)
+
+	bigI := big.NewInt(0)
+	bigOne := big.NewInt(1)
+
+	count := -2
+
+	for {
+		// fmt.Println(count)
+		if count%flag == 5 {
+			digits := float64(count) * 14.181647462
+			prec := uint(int(math.Ceil(math.Log2(10)*float64(digits))) + int(math.Ceil(math.Log10(float64(digits)))) + 2)
+			word := pi.SetPrec(prec).Text('f', int(prec))
+			words <- Word{word, int64(digits)}
+		}
+		// L calculation
+		l.Add(l, lc)
+
+		// X calculation
+		x.Mul(x, xc)
+
+		// M calculation
+		kpower3 := big.NewInt(0)
+		kpower3.Exp(k, big.NewInt(3), nil)
+		ktimes16 := new(big.Int).Mul(k, big.NewInt(16))
+		mtop := big.NewFloat(0).SetPrec(maxPrec)
+		mtop.SetInt(new(big.Int).Sub(kpower3, ktimes16))
+		mbot := big.NewFloat(0).SetPrec(maxPrec)
+		mbot.SetInt(new(big.Int).Exp(new(big.Int).Add(bigI, bigOne), big.NewInt(3), nil))
+		mtmp := big.NewFloat(0).SetPrec(maxPrec)
+		mtmp.Quo(mtop, mbot)
+		m.Mul(m, mtmp)
+
+		// Sum calculation
+		t := big.NewFloat(0).SetPrec(maxPrec)
+		t.Mul(m, l)
+		t.Quo(t, x)
+		sum.Add(sum, t)
+
+		// Pi calculation
+		pi.Quo(c, sum)
+		k.Add(k, k12)
+		bigI.Add(bigI, bigOne)
+
+		count++
+	}
 }

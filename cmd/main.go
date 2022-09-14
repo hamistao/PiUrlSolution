@@ -30,14 +30,27 @@ func consume(c chan string, join chan int) {
 		n, _ := strconv.Atoi(word)
 		if isPalindrome(word) && isPrime(int64(n)) {
 			fmt.Println(word)
-			close(c)
+			join <- 1
 		}
 	}
-	join <- 1
 }
 
-func produce(c chan string) {
-
+func produce(c chan string, flag, prec int) {
+	words := make(chan pi.Word)
+	go pi.Chudnovsky(flag, prec, words)
+	var current string = "141592653"
+	var index int64 = 11
+	for w := range words {
+		fmt.Println(w.Digits)
+		fmt.Println(w.Number)
+		for index < w.Digits {
+			if isPalindrome(current) {
+				c <- current
+			}
+			current = current[1:] + string(w.Number[index])
+			index++
+		}
+	}
 }
 
 func main() {
@@ -45,12 +58,10 @@ func main() {
 	words := make(chan string, 10) // channel of words within pi
 	join := make(chan int)
 
-	go produce(words)
+	go produce(words, 100, 2000)
 	for i := 0; i < CORES-1; i++ {
 		go consume(words, join)
 	}
 
-	for i := 0; i < CORES-1; i++ {
-		<-join
-	}
+	<-join
 }
