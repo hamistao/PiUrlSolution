@@ -41,9 +41,7 @@ func produce(c chan string, flag, prec int) {
 	var current string = "141592653"
 	var index int64 = 11
 	for w := range words {
-		fmt.Println(w.Digits)
-		fmt.Println(w.Number)
-		for index < w.Digits {
+		for index < w.Digits-2 {
 			if isPalindrome(current) {
 				c <- current
 			}
@@ -54,7 +52,6 @@ func produce(c chan string, flag, prec int) {
 }
 
 func main() {
-	pi.MacLaurin(1)
 	words := make(chan string, 10) // channel of words within pi
 	join := make(chan int)
 

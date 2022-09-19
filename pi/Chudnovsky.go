@@ -124,7 +124,9 @@ func Chudnovsky(flag, p int, words chan Word) {
 		if count%flag == 5 {
 			digits := float64(count) * 14.181647462
 			prec := uint(int(math.Ceil(math.Log2(10)*float64(digits))) + int(math.Ceil(math.Log10(float64(digits)))) + 2)
-			word := pi.SetPrec(prec).Text('f', int(prec))
+			word := pi.SetPrec(prec).Text('f', -1)
+			fmt.Println(digits)
+			fmt.Println(pi)
 			words <- Word{word, int64(digits)}
 		}
 		// L calculation
