@@ -1,95 +1,124 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
-	"math"
+	"io/ioutil"
 	"math/big"
 	"net/http"
 )
 
-func CalcPi(digits float64) (*big.Float, uint) {
-	/**
-	* 	This is an implementation for https://en.wikipedia.org/wiki/Chudnovsky_algorithm
-	*	it can be improved using binary splitting http://numbers.computation.free.fr/Constants/Algorithms/splitting.html
-	* 	if we split it into two independent parts and simplify the formula for more details https://www.craig-wood.com/nick/articles/pi-chudnovsky/
-	 */
+type Response struct {
+	Content string `json:"content"`
+}
 
-	n := int64(2 + int(float64(digits)/14.181647462))
-	prec := uint(int(math.Ceil(math.Log2(10)*digits)) + int(math.Ceil(math.Log10(digits))) + 2)
-
-	c := new(big.Float).Mul(
-		big.NewFloat(float64(426880)),
-		new(big.Float).SetPrec(prec).Sqrt(big.NewFloat(float64(10005))),
-	)
-
-	fmt.Println(c)
-
-	k := big.NewInt(int64(6))
-	k12 := big.NewInt(int64(12))
-	l := big.NewFloat(float64(13591409))
-	lc := big.NewFloat(float64(545140134))
-	x := big.NewFloat(float64(1))
-	xc := big.NewFloat(float64(-262537412640768000))
-	m := big.NewFloat(float64(1))
-	sum := big.NewFloat(float64(13591409))
-
-	pi := big.NewFloat(0)
-
-	x.SetPrec(prec)
-	m.SetPrec(prec)
-	sum.SetPrec(prec)
-	pi.SetPrec(prec)
-
-	bigI := big.NewInt(0)
-	bigOne := big.NewInt(1)
-
-	for ; n > 0; n-- {
-
-		// L calculation
-		l.Add(l, lc)
-
-		// X calculation
-		x.Mul(x, xc)
-
-		// M calculation
-		kpower3 := big.NewInt(0)
-		kpower3.Exp(k, big.NewInt(3), nil)
-		ktimes16 := new(big.Int).Mul(k, big.NewInt(16))
-		mtop := big.NewFloat(0).SetPrec(prec)
-		mtop.SetInt(new(big.Int).Sub(kpower3, ktimes16))
-		mbot := big.NewFloat(0).SetPrec(prec)
-		mbot.SetInt(new(big.Int).Exp(new(big.Int).Add(bigI, bigOne), big.NewInt(3), nil))
-		mtmp := big.NewFloat(0).SetPrec(prec)
-		mtmp.Quo(mtop, mbot)
-		m.Mul(m, mtmp)
-
-		// Sum calculation
-		t := big.NewFloat(0).SetPrec(prec)
-		t.Mul(m, l)
-		t.Quo(t, x)
-		sum.Add(sum, t)
-
-		// Pi calculation
-		pi.Quo(c, sum)
-		k.Add(k, k12)
-		bigI.Add(bigI, bigOne)
-
+func min(a, b int64) int64 {
+	if a <= b {
+		return a
 	}
-	return pi, prec
+	return b
+}
+
+func checkDivisors(candidate *big.Int, join chan int, out chan bool, i, j int64) {
+	fmt.Print("thread: ")
+	fmt.Println(i)
+	var count int64 = 0
+	for i <= j {
+		if count%50000000 == 0 {
+			fmt.Print("div:")
+			fmt.Println(i)
+		}
+		modF := big.NewInt(0).Mod(candidate, big.NewInt(i)).Int64()
+		if modF == 0 {
+			fmt.Println("foi porra")
+			out <- false && <-out
+			join <- 1
+			return
+		}
+		modFPlus2 := big.NewInt(0).Mod(candidate, big.NewInt(i+2)).Int64()
+		if modFPlus2 == 0 {
+			fmt.Println("foi porra")
+			out <- false && <-out
+			join <- 1
+			return
+		}
+		i += 6
+		count++
+	}
+}
+
+func bruteWay(n *big.Int, n_threads int) bool {
+	mod2 := big.NewInt(0).Mod(n, big.NewInt(2))
+	fmt.Println("foi mod2")
+	mod3 := big.NewInt(0).Mod(n, big.NewInt(3))
+	fmt.Println("foi mod3")
+	if mod2.Int64() == 0 || mod3.Int64() == 0 {
+		return false
+	}
+	root := big.NewInt(0).Sqrt(n).Int64()
+	div := int64(5)
+	step := int64((root-div)/int64(n_threads)) + 2
+	fmt.Print("step: ")
+	fmt.Println(step)
+	join := make(chan int)
+	out := make(chan bool, 1)
+	fmt.Println("a")
+	out <- true
+
+	fmt.Println("a")
+	for i := 0; i < n_threads; i++ {
+		go checkDivisors(n, join, out, div, min(div+step, root))
+		div += step
+	}
+
+	for i := 0; i < n_threads; i++ {
+		<-join
+	}
+
+	return <-out
+}
+
+func isPrime(word string) bool { // function to check if number is prime
+	n, _ := big.NewInt(0).SetString(word, 10)
+	if n.ProbablyPrime(0) {
+		fmt.Println("probably")
+		return bruteWay(n, 10)
+	}
+	return false
+}
+
+func isPalindrome(s string) bool { // function to check if word is a palindrome
+	length := len(s)
+	for i := 0; i < length/2; i++ {
+		if s[i] != s[length-1-i] {
+			return false
+		}
+	}
+	return true
+}
+
+func getPi(start int) string {
+	numberOfDigits := 1000
+	radix := 10
+	url := fmt.Sprintf("https://api.pi.delivery/v1/pi?start=%v&numberOfDigits=%v&radix=%v", start, numberOfDigits, radix)
+
+	raw, _ := http.Get(url)
+
+	jsonResp, _ := ioutil.ReadAll(raw.Body)
+
+	var resp Response
+	json.Unmarshal(jsonResp, &resp)
+
+	return resp.Content
 }
 
 func main() {
-	start := 0
-	numberOfDigits := 100
-	radix := 10
-	url := fmt.Sprintf("https://api.pi.delivery/v1/pi?start=%v&numberOfDigits=%v&radix=%v", start, numberOfDigits, radix)
-	fmt.Println(url)
+	// word := "100000000000000016471"
+	// word := "923794682393286497323"
+	// n, _ := big.NewInt(0).SetString(word, 10)
+	// fmt.Println(bruteWay(n))
 
-	pi, err := http.Get(url)
-	if err != nil {
-		log.Fatal("não rolou")
-	}
+	// fmt.Println(isPrime(word))
 
-	fmt.Println(pi.Body)
+	fmt.Println(getPi(2937979))
 }

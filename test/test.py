@@ -1,29 +1,5 @@
-import decimal
-import sys
+import requests
 
-C = 426880 * decimal.Decimal(10005).sqrt()
-k = 6
-m = 1
-x = 1
-l = 13591409
-s = l
+pi = requests.get("https://api.pi.delivery/v1/pi?start=0&numberOfDigits=1001&radix=10")
 
-def compute_pi(i):
-    """
-    This function calculates the value of pi to 'i'\ 
-    number of places using the previously
-    defined funtions
-    Args:
-    i:   precision
-    Returns:
-    pi:   the value of pi"""
-    decimal.getcontext().prec = i+1
-    decimal.getcontext().Emax = 999999999
-    a = list(map(compute_pi, range(1, i+1)))
-    pi = decimal.Decimal(C/a[-1])
-    return pi
-
-n = int(input("Please type number: "))
-sys.setrecursionlimit(n)
-b=compute_pi(n)
-print(b)
+print(pi.content)
