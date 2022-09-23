@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net/http"
 	"time"
 )
 
 var (
-	OPTIMAL_N_THREADS = 22
-	LEN_WORD          = 21
-	OPTIMAL_N_MILLIN  = 3
+	OPTIMAL_N_THREADS               = 22
+	LEN_WORD                        = 21
+	OPTIMAL_N_MILLIN                = 10
+	TIMEOUT           time.Duration = 30
 )
 
 type Response struct {
@@ -78,23 +80,32 @@ func parseDigits(piDigits chan string, words chan string) {
 }
 
 func getPi(start int64) string {
+	if start%97900 == 0 {
+		fmt.Println(start)
+	}
+
 	numberOfDigits := 1000
 	radix := 10
 	url := fmt.Sprintf("https://api.pi.delivery/v1/pi?start=%v&numberOfDigits=%v&radix=%v", start, numberOfDigits, radix)
 
-	raw, _ := http.Get(url)
+	raw, err := http.Get(url)
+
+	if err != nil {
+		log.Fatalf("Error while requesting digits: %v", err)
+	}
+
+	if raw.StatusCode != 200 {
+		fmt.Print("start: ")
+		fmt.Println(start)
+		fmt.Println(raw.Status)
+		time.Sleep(time.Second * 10)
+		return getPi(start)
+	}
 
 	jsonResp, _ := ioutil.ReadAll(raw.Body)
 
 	var resp Response
 	json.Unmarshal(jsonResp, &resp)
-
-	if len(resp.Content) == 0 {
-		fmt.Print("start: ")
-		fmt.Println(start)
-		time.Sleep(time.Second * 10)
-		return getPi(start)
-	}
 
 	return resp.Content
 }
@@ -107,9 +118,6 @@ func produce(words chan string, threads int) {
 		go func() {
 			for {
 				start := getAndInc(startChan)
-				if start%(979*1000) == 0 {
-					fmt.Println(start)
-				}
 				piDigits <- getPi(start)
 			}
 		}()
@@ -132,7 +140,7 @@ func main() {
 
 	t := time.Now()
 
-	go produce(words, 5)
+	go produce(words, 3)
 	go consume(words, join)
 
 	<-join
