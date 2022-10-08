@@ -11,10 +11,12 @@ import (
 )
 
 var (
-	OPTIMAL_N_THREADS               = 22
-	LEN_WORD                        = 21
-	OPTIMAL_N_MILLIN                = 10
-	TIMEOUT           time.Duration = 30
+	// INITIAL_START int64 = 0
+	INITIAL_START    int64 = 1426403000
+	LEN_WORD               = 21
+	OPTIMAL_N_MILLIN       = 100
+	REQUEST_PERIOD         = 110 * time.Millisecond
+	TIMEOUT                = 35 * time.Second
 )
 
 type Response struct {
@@ -71,7 +73,6 @@ func isPalindrome(s string) bool { // function to check if word is a palindrome
 func parseDigits(piDigits chan string, words chan string) {
 	for digits := range piDigits {
 		current := digits[:LEN_WORD]
-		words <- current
 		for i := LEN_WORD; i < 1000; i++ {
 			current = current[1:] + string(digits[i])
 			words <- current
@@ -80,49 +81,49 @@ func parseDigits(piDigits chan string, words chan string) {
 }
 
 func getPi(start int64) string {
-	if start%97900 == 0 {
-		fmt.Println(start)
+	for {
+		if start%(979*1000) == 0 {
+			fmt.Println(start)
+		}
+
+		numberOfDigits := 1000
+		radix := 10
+		url := fmt.Sprintf("https://api.pi.delivery/v1/pi?start=%v&numberOfDigits=%v&radix=%v", start, numberOfDigits, radix)
+
+		raw, err := http.Get(url)
+
+		if err != nil {
+			log.Fatalf("Error while requesting digits: %v", err)
+		}
+
+		defer raw.Body.Close()
+
+		switch raw.StatusCode {
+		case 200:
+			jsonResp, _ := ioutil.ReadAll(raw.Body)
+
+			var resp Response
+			json.Unmarshal(jsonResp, &resp)
+
+			return resp.Content
+		default:
+			log.Fatalf("Unexpected status code: %v", raw.Status)
+		}
 	}
-
-	numberOfDigits := 1000
-	radix := 10
-	url := fmt.Sprintf("https://api.pi.delivery/v1/pi?start=%v&numberOfDigits=%v&radix=%v", start, numberOfDigits, radix)
-
-	raw, err := http.Get(url)
-
-	if err != nil {
-		log.Fatalf("Error while requesting digits: %v", err)
-	}
-
-	if raw.StatusCode != 200 {
-		fmt.Print("start: ")
-		fmt.Println(start)
-		fmt.Println(raw.Status)
-		time.Sleep(time.Second * 10)
-		return getPi(start)
-	}
-
-	jsonResp, _ := ioutil.ReadAll(raw.Body)
-
-	var resp Response
-	json.Unmarshal(jsonResp, &resp)
-
-	return resp.Content
 }
 
-func produce(words chan string, threads int) {
+func produce(words chan string) {
 	piDigits := make(chan string, 10)
 	startChan := make(chan int64, 1)
-	startChan <- 0
-	for i := 0; i < threads; i++ {
+	startChan <- INITIAL_START
+	go parseDigits(piDigits, words)
+	tick := time.NewTicker(REQUEST_PERIOD)
+	for range tick.C {
 		go func() {
-			for {
-				start := getAndInc(startChan)
-				piDigits <- getPi(start)
-			}
+			start := getAndInc(startChan)
+			piDigits <- getPi(start)
 		}()
 	}
-	go parseDigits(piDigits, words)
 }
 
 func consume(words chan string, join chan int) {
@@ -140,10 +141,10 @@ func main() {
 
 	t := time.Now()
 
-	go produce(words, 3)
+	go produce(words)
 	go consume(words, join)
 
 	<-join
 
-	fmt.Println(time.Since(t))
+	fmt.Printf("Done in time %v\n", time.Since(t))
 }
